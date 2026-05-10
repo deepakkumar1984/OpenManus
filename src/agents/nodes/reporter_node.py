@@ -15,9 +15,9 @@ def reporter_node(state: State) -> Dict[str, Any]: # Modified return type to Dic
     """Reporter node that write a final report."""
     logger.info("Reporter writing final report")
     messages = OpenManusPromptTemplate.apply_prompt_template("reporter", state)
-    response = reporter_agent.invoke(state)
+    response = reporter_agent.invoke(messages)
     logger.debug(f"Current state messages: {state['messages']}")
-    response_content = response.content
+    response_content = response.content if hasattr(response, "content") else str(response)
     response_content = repair_json_output(response_content)
     logger.debug(f"Reporter agent response: {response_content}")
 

@@ -3,8 +3,19 @@
 import asyncio
 from typing import AsyncGenerator, Dict, List
 
+from langchain_core.messages import HumanMessage, AIMessage
+
 from src.workflow.graph import build_graph
-from src.prompts.template import OpenManusPromptTemplate
+
+
+def _to_langchain_messages(messages: List[Dict[str, str]]):
+    result = []
+    for m in messages:
+        if m["role"] == "user":
+            result.append(HumanMessage(content=m["content"]))
+        else:
+            result.append(AIMessage(content=m["content"]))
+    return result
 
 
 async def run_agent_workflow(
@@ -19,19 +30,23 @@ async def run_agent_workflow(
     Yields:
         Event data for SSE streaming
     """
-    # Initialize workflow graph
     workflow = build_graph()
+    langchain_messages = _to_langchain_messages(messages)
 
-    # Format messages with system prompt
-    formatted_messages = OpenManusPromptTemplate.apply_prompt_template(
-        "coordinator", {"messages": messages}
-    )
-
-    # Run workflow
-    async for event in workflow.astream({"messages": formatted_messages}):
-        yield {
-            "event": "message",
-            "data": {"content": event.get("content", ""), "role": "assistant"}
-        }
-        # Small delay to avoid overwhelming the client
-        await asyncio.sleep(0.1)
+    # LangGraph astream yields dicts keyed by node name, e.g.:
+    # {"coordinator": {"messages": [AIMessage(...)], "next": "planner"}}
+    async for event in workflow.astream({"messages": langchain_messages}):
+        for node_name, node_output in event.items():
+            if not isinstance(node_output, dict):
+                continue
+            node_messages = node_output.get("messages", [])
+            if not node_messages:
+                continue
+            last_msg = node_messages[-1]
+            content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+            if content:
+                yield {
+                    "event": "message",
+                    "data": {"content": content, "role": "assistant", "node": node_name},
+                }
+        await asyncio.sleep(0.05)

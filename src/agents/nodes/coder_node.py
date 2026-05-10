@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 def coder_node(state: State) -> Dict[str, Any]: # Modified return type to Dict
     """Node for the coder agent that executes Python code."""
     logger.info("Code agent starting task")
-    result = coder_agent.invoke(state)
+    result = coder_agent.invoke(state["messages"])
     logger.info("Code agent completed task")
-    response_content = result["messages"][-1].content
+    response_content = result.content if hasattr(result, "content") else str(result)
     response_content = repair_json_output(response_content)
     logger.debug(f"Code agent response: {response_content}")
     return Command(

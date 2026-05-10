@@ -53,9 +53,11 @@ async def chat_stream_endpoint(request: ChatRequest, req: Request):
         The streamed response
     """
     try:
+        messages = [message.model_dump() for message in request.messages]
+
         async def event_generator():
             async for event in run_agent_workflow(
-                request.messages, request.debug
+                messages, request.debug
             ):
                 # Check if client is still connected
                 if await req.is_disconnected():
